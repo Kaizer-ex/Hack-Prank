@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Login - Glass UI (Hack Prank)</title>
+<style>
+  /* ---------- Basic / Glass UI ---------- */
+  :root { --accent1:#667eea; --accent2:#764ba2; --glass-bg: rgba(255,255,255,0.12); }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:Inter, Arial, sans-serif}
+  html,body{height:100%}
+  body{
+    display:flex;align-items:center;justify-content:center;
+    background: linear-gradient(135deg,var(--accent1),var(--accent2));
+    overflow:hidden;
+  }
+
+  .background{
+    position:fixed;inset:0;
+    background: url('https://picsum.photos/1920/1080?blur=5') center/cover no-repeat;
+    filter: blur(8px) brightness(.6);
+    z-index:0;
+  }
+
+  .container{
+    z-index:2;
+    width:360px;
+    margin:auto;
+  }
+
+  .glass-card{
+    background: var(--glass-bg);
+    backdrop-filter: blur(14px) saturate(120%);
+    border-radius:14px;
+    padding:28px;
+    color:#fff;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3);
+    text-align:left;
+  }
+  .glass-card h2{ text-align:center;margin-bottom:6px }
+  .glass-card p.lead{ text-align:center; color:#e9e9f8; margin-bottom:12px; font-size:14px }
+  label{display:block;margin-top:10px;font-size:13px}
+  input{
+    width:100%;padding:10px;border-radius:8px;border:none;outline:none;
+    margin-top:6px;background: rgba(255,255,255,0.14); color:#fff;
+  }
+  input::placeholder{ color:#e6e6e6a8 }
+  button.primary{
+    width:100%;padding:10px;margin-top:18px;border-radius:8px;border:none;
+    background: linear-gradient(135deg,var(--accent1),var(--accent2));
+    color:#fff;font-weight:700;cursor:pointer;
+  }
+  .footer{ text-align:center;margin-top:12px;font-size:13px }
+  .footer a{ color:#fff;text-decoration:underline }
+
+  /* ---------- Hack Mode Overlay ---------- */
+  .hack-canvas{
+    position:fixed;inset:0;z-index:3;background:#000;display:block;
+  }
+  .hack-overlay{
+    position:fixed;inset:0;z-index:4;pointer-events:none;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:#0f0;font-family:monospace;
+  }
+  .access-denied{
+    color:#ff3b3b;font-weight:900;font-family:monospace;
+    letter-spacing:2px;text-align:center;margin-bottom:12px;
+    font-size:36px;
+    text-shadow:0 0 8px rgba(255,59,59,0.6);
+    animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 0%{opacity:1}50%{opacity:.15}100%{opacity:1} }
+
+  .warning-box{
+    background: rgba(255,0,0,0.06);
+    border: 1px solid rgba(255,0,0,0.12);
+    padding:12px 18px;border-radius:10px;color:#ffbcbc;font-family:Inter, monospace;
+    max-width:760px;text-align:center;margin:8px;
+  }
+
+  .control-panel{
+    margin-top:18px; display:flex;gap:12px;align-items:center;
+    pointer-events:auto;
+  }
+  .btn-reset{
+    background:#222;color:#fff;padding:10px 14px;border-radius:8px;border:1px solid #444;
+    cursor:pointer; font-weight:700;
+  }
+  .btn-reset:disabled{ opacity:.45; cursor:not-allowed }
+
+  .countdown{
+    color:#0f0;font-family:monospace;margin-left:8px;
+    font-size:16px;
+  }
+
+  /* small responsive */
+  @media (max-width:420px){
+    .container { width:92%; }
+    .access-denied{ font-size:28px }
+  }
+</style>
+</head>
+<body>
+  <div class="background" aria-hidden="true"></div>
+
+  <div class="container" id="container">
+    <form class="glass-card" id="loginForm" autocomplete="off">
+      <h2>Welcome Back</h2>
+      <p class="lead">Please login to your account</p>
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" placeholder="you@example.com" required>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" placeholder="........" required>
+
+      <button type="submit" class="primary">Sign In</button>
+
+      <div class="footer">
+        <p>Don't have an account? <a href="#">Register</a></p>
+      </div>
+    </form>
+  </div>
+
+  <!-- hack elements injected dynamically; keep example structure for accessibility -->
+  <canvas class="hack-canvas" id="hackCanvas" style="display:none;"></canvas>
+  <div class="hack-overlay" id="hackOverlay" style="display:none;">
+    <div class="access-denied" id="accessText">ACCESS DENIED</div>
+    <div class="warning-box" id="warnBox">
+      <div id="messageLine">Unauthorized access detected. System integrity compromised.</div>
+      <div style="margin-top:8px;font-size:13px;color:#9ef59e" id="subLine">Attempting countermeasures...</div>
+    </div>
+
+    <div class="control-panel" id="controlPanel" style="display:none;">
+      <button id="resetBtn" class="btn-reset" disabled>RESET to Login</button>
+      <div class="countdown" id="countdown">60s</div>
+    </div>
+  </div>
+
+<script>
+/* ---------- Helpers: Matrix Canvas + Sound (WebAudio) ---------- */
+const canvas = document.getElementById('hackCanvas');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+canvas.width = W; canvas.height = H;
+
+let columns = Math.floor(W / 16);
+let drops = Array(columns).fill(1);
+
+// characters for matrix effect
+const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%^&*()-+=<>?';
+
+// draw loop
+let matrixInterval = null;
+function startMatrix() {
+  canvas.style.display = 'block';
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.font = '14px monospace';
+  matrixInterval = setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#0f0';
+    for (let i=0;i<drops.length;i++){
+      const text = chars.charAt(Math.floor(Math.random() * chars.length));
+      ctx.fillText(text, i*16, drops[i]*16);
+      if (drops[i]*16 > H && Math.random() > 0.975) drops[i]=0;
+      drops[i]++;
+    }
+  }, 40);
+}
+
+function stopMatrix() {
+  clearInterval(matrixInterval);
+  canvas.style.display = 'none';
+  ctx.clearRect(0,0,W,H);
+}
+
+// responsive
+window.addEventListener('resize', () => {
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+  columns = Math.floor(W / 16);
+  drops = Array(columns).fill(1);
+});
+
+/* ---------- Sound: simple beep / alarm using WebAudio ---------- */
+let audioCtx = null;
+function beep(freq=880, duration=120, type='sine', vol=0.08){
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.value = vol;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  setTimeout(()=>{ o.stop(); }, duration);
+}
+
+/* ---------- Hack mode flow ---------- */
+const form = document.getElementById('loginForm');
+const container = document.getElementById('container');
+const overlay = document.getElementById('hackOverlay');
+const accessText = document.getElementById('accessText');
+const warnBox = document.getElementById('warnBox');
+const controlPanel = document.getElementById('controlPanel');
+const resetBtn = document.getElementById('resetBtn');
+const countdownEl = document.getElementById('countdown');
+
+form.addEventListener('submit', (e)=>{
+  e.preventDefault();
+  triggerHackPrank();
+});
+
+function triggerHackPrank(){
+  // fade out the glass UI
+  container.style.transition = 'opacity .4s';
+  container.style.opacity = '0';
+  setTimeout(()=>{ container.style.display = 'none'; }, 420);
+
+  // show hack visuals
+  overlay.style.display = 'flex';
+  setTimeout(()=> overlay.style.opacity = '1', 40);
+
+  startMatrix();
+
+  // play initial alarm/beeps
+  beep(440,140,'square',0.12);
+  setTimeout(()=>beep(660,160,'sawtooth',0.12),160);
+  setTimeout(()=>beep(330,120,'sine',0.08),330);
+
+  // animate ACCESS DENIED text flashing & message updates
+  accessText.textContent = 'ACCESS DENIED';
+  let flashes = 0;
+  const flashInt = setInterval(() => {
+    accessText.style.visibility = (accessText.style.visibility === 'hidden') ? 'visible' : 'hidden';
+    flashes++;
+    if (flashes > 7) {
+      clearInterval(flashInt);
+      accessText.style.visibility = 'visible';
+    }
+  }, 250);
+
+  // type-like message updates for realism
+  const msgs = [
+    'Unauthorized access detected.',
+    'Tracing source...',
+    'Encrypting local files...',
+    'Deploying countermeasures...'
+  ];
+  let mI = 0;
+  const msgInterval = setInterval(()=>{
+    if (mI < msgs.length) {
+      typeText('#messageLine', msgs[mI], 16);
+      mI++;
+      beep(220 + (mI*50), 220, 'sine', 0.06);
+    } else {
+      clearInterval(msgInterval);
+      // show final line and control panel (reset is locked)
+      document.getElementById('subLine').textContent = 'System lockdown in effect.';
+      controlPanel.style.display = 'flex';
+      startLockCountdown(60); // lock 60 seconds
+    }
+  }, 1600);
+}
+
+/* simple typewriter into selector text */
+function typeText(selector, text, speed=30){
+  const el = document.querySelector(selector);
+  el.textContent = '';
+  let i=0;
+  const t = setInterval(()=>{
+    el.textContent += text[i] ?? '';
+    i++;
+    if(i>text.length) clearInterval(t);
+  }, speed);
+}
+
+/* lock countdown and enable reset later */
+function startLockCountdown(seconds){
+  let s = seconds;
+  countdownEl.textContent = `${s}s`;
+  resetBtn.disabled = true;
+
+  // periodic alarm beep
+  const alarmTimer = setInterval(()=> beep(140,90,'sine',0.05), 1200);
+
+  const cd = setInterval(()=>{
+    s--;
+    countdownEl.textContent = `${s}s`;
+    if (s <= 0) {
+      clearInterval(cd);
+      clearInterval(alarmTimer);
+      countdownEl.textContent = 'Ready';
+      resetBtn.disabled = false;
+      resetBtn.focus();
+      // change warning color to show ready
+      document.getElementById('warnBox').style.border = '1px solid rgba(0,255,0,0.12)';
+      document.getElementById('warnBox').style.color = '#bfffbf';
+      beep(880,220,'triangle',0.12);
+    }
+  }, 1000);
+
+  // if user clicks reset after enabled -> reload page to show login again
+  resetBtn.onclick = () => {
+    if (!resetBtn.disabled) {
+      stopMatrix();
+      // small fade then reload to initial state
+      overlay.style.opacity = '0';
+      setTimeout(()=> location.reload(), 350);
+    }
+  };
+}
+
+/* Accessibility: pressing ESC during hack won't bypass lock, but can show info */
+document.addEventListener('keydown', (e)=>{
+  if (e.key === 'Escape') {
+    // show short hint
+    const old = document.getElementById('subLine');
+    if (old) { old.textContent = 'System lockdown: please wait the countdown.'; }
+    beep(200,100,'sine',0.04);
+  }
+});
+</script>
+</body>
+</html>
